@@ -52,7 +52,11 @@ These are public constants that define basic token metadata:\
 uint256 public totalSupply; 
 mapping (address => uint256) public balanceOf; 
 mapping (address => mapping(address => uint256)) public allowance;
-``` 
+```
+**In Solidity**, a mapping is like a hash table (or dictionary) that stores key–value pairs.  
+This means:  
+🔑 address → 📦 uint256 (the token balance for each address)  
+It's used to track data for different users efficiently.  
 ``` totalSupply ```: Tracks the total number of tokens minted.  
 ``` balanceOf ```: Keeps track of how many tokens each address owns.  
 ``` allowance ```: Lets users approve another address to spend tokens on their behalf (used in transferFrom).  
@@ -63,6 +67,7 @@ mapping (address => mapping(address => uint256)) public allowance;
     return _transfer(msg.sender, to, value);
 }
 ```
+**A function** is a reusable block of code that performs a specific task when called.  
 This is the standard ERC-20 ```transfer``` function.  
 It lets the sender (caller) send tokens to another address.  
 Calls the internal ```_transfer()``` function to handle the logic.  
