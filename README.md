@@ -23,18 +23,19 @@ This is my ERC20 Contract Assignment...where I take "My First ERC20 Contract" an
 ``` pragma solidity 0.8.26; ```\
 **Compiler version** – this tells Solidity to compile with version 0.8.26. If a different version is used, compilation will fail.
 
-#### 📝 Contract  
+#### 📝 Contract Declaration 
 ``` contract ERC20 { ```  
-Start of the contract definition – I'm creating a contract called ERC20.
+Starts the definition of my smart contract named ERC20
 
 #### 🔔 Events   
 ``` 
 event Transfer(address indexed from, address indexed to, uint256 value);
 event Approval(address indexed owner, address indexed spender, uint256 value);
 ```
-**Events** – these log important actions on the blockchain. They're used for: \
-``` Transfer ```: when tokens move from one account to another \
-``` Approval ```: when someone allows another account to spend tokens on their behalf.
+**Events** – these log important actions or "events" for the frontend dApps or for blockchain explorers to track.  
+They're used for: \
+``` Transfer ```: when tokens move from one account to another. emitted when tokens are sent. \
+``` Approval ```: when someone allows another account to spend tokens on their behalf. emitted when a spender is approved to spend tokens.
 
 #### 🏷️ Token Metadata  
 ```
@@ -44,8 +45,8 @@ event Approval(address indexed owner, address indexed spender, uint256 value);
 ```
 These are public constants that define basic token metadata:\
 ``` name ```: Full name of my token.\
-``` symbol ```: Token symbol (like ETH or USDT).\
-``` decimals ```: How divisible my token is. 18 means 1 token = 1e18 smallest units, like Ether.  
+``` symbol ```: Name abbreviation. Token symbol (like ETH or USDT).\
+``` decimals ```: Number of decimal places. How divisible my token is. 18 means 1 token = 1e18 smallest units, 18 is standard like Ether.  
 
 #### 📊 Token Supply & Balances  
 ``` 
@@ -57,9 +58,15 @@ mapping (address => mapping(address => uint256)) public allowance;
 This means:  
 🔑 address → 📦 uint256 (the token balance for each address)  
 It's used to track data for different users efficiently.  
-``` totalSupply ```: Tracks the total number of tokens minted.  
-``` balanceOf ```: Keeps track of how many tokens each address owns.  
+``` totalSupply ```: Tracks the total number of tokens minted (but not updated in this code). 
+``` balanceOf ```: Keeps track of how many tokens each address owns or in other words ... keeps track of how many tokens (```owner```) lets (```spender```) spend.
 ``` allowance ```: Lets users approve another address to spend tokens on their behalf (used in transferFrom).  
+
+#### 💰 Fee Address 
+```
+address public feeCollector = 0xA26D8AF9d02Dc35c1BC05bD46528B24b71B83d96;
+```
+Sets the address that will receive the 1% transaction fee.
 
 #### 💸 Transfer Function
 ```
@@ -69,17 +76,18 @@ It's used to track data for different users efficiently.
 ```
 **A function** is a reusable block of code that performs a specific task when called.  
 This is the standard ERC-20 ```transfer``` function.  
-It lets the sender (caller) send tokens to another address.  
+It lets the sender (caller) send tokens to another address. 
 Calls the internal ```_transfer()``` function to handle the logic.  
 
-#### 🎁 Minting Tokens (Testing)
+#### 🎁 Minting Tokens (Testing for Dev)
 ```
 function giveMeOneToken() external {
     balanceOf[msg.sender] += 1e18;
 }
 ```
 This is a custom function for testing.  
-It mints 1 full token (1e18 units) to the caller's address.  
+It mints 1 full token (1e18 units) to the caller's address. Good for testing only.  
+⚠️ Does not increase ```totalSupply```.
 
 #### 🏦 Transfer Using Allowance  
 ```
@@ -94,26 +102,42 @@ function transferFrom(address from, address to, uint256 value) external returns 
 }
 ```
 This allows a third party (like a smart contract) to transfer tokens on behalf of someone else.  
-It checks that the sender (```msg.sender```) is allowed to spend that much.  
+```function transferFrom(address from, address to, uint256 value) external returns (bool) {require(allowance[from][msg.sender] >= value, "ERC20: Insufficient Allowance");``` Checks that the sender (```msg.sender```) is allowed to spend that much ```value``` tokens from ```from```.  
+```allowance[from][msg.sender] -= value;``` Decreases the allowance after the spend.  
 It deducts the allowance and calls ```_transfer()``` to complete the move.  
+```emit Approval(from, msg.sender, allowance[from][msg.sender]);``` Emits an Approval event to reflect the updated allowance.  
+```return _transfer(from, to, value); }``` Transfers the tokens using the internal ```_transfer()```.  
 
-#### ⚙️ Internal Transfer Logic
+#### ⚙️ Internal Transfer Logic (with fee)
 ```
 function _transfer(address from, address to, uint256 value) private returns (bool) {
     require(balanceOf[from] >= value, "ERC20: Insufficient sender balance");
 
-    emit Transfer(from, to, value);
+    uint256 fee = value / 100; // 1% Fee
+    uint256 amountAfterFee = value - fee;
 
     balanceOf[from] -= value;
-    balanceOf[to] += value;
+    balanceOf[to] += amountAfterFee;
+    balanceOf[feeCollector] += fee;
+
+   emit Transfer(from, to, amountAfterFee);
+   emit Transfer(from, feeCollector, fee);
 
     return true;
 }
 ```
-This is the core transfer logic:  
-Checks the sender has enough tokens.  
-Emits the ```Transfer``` event.  
-Moves tokens from sender to recipient.  
+This is the core transfer logic:
+Moves tokens from sender to recipient and pays the 1% fee.  
+```function _transfer(address from, address to, uint256 value) private returns (bool) {require(balanceOf[from] >= value, "ERC20: Insufficient sender balance");``` Checks if the sender has enough tokens.     
+```uint256 fee = value / 100; // 1% Fee``` ```uint256 amountAfterFee = value - fee;``` Calculates a 1% fee and how much the recipient will actually get. The ```100``` represents 100%, and dividing the ```value``` by 100 gives you 1% of the value. ```fee = 0.01 tokens``` — that's 1% of 1 token. ```value / 100``` = 1% of ```value```... It's just basic percentage math: value × 1 / 100 = 1%
+
+
+ ```balanceOf[from] -= value;``` ```balanceOf[to] += amountAfterFee;``` ```balanceOf[feeCollector] += fee;``` Transfers the net amount to the recipient, and the fee to the ```feeCollector```.  
+```emit Transfer(from, to, amountAfterFee);``` ```emit Transfer(from, feeCollector, fee);``` Emits two events:
+- The main transfer
+- The fee transfer
+```return true;}``` Confirms the transfer succeeded.
+
 
 #### ✅ Approval Function
 ```
@@ -125,14 +149,20 @@ function approve(address spender, uint256 value) external returns (bool) {
     return true;
 }
 ```
-Allows another address ```(spender)``` to spend a certain amount of your tokens.
+```function approve(address spender, uint256 value) external returns (bool) { allowance[msg.sender][spender] += value;``` Adds ```value``` to the amount the ```spender``` is allowed to spend from ```msg.sender```.
+```emit Approval(msg.sender, spender, value); return true;}``` Emits the ```Approval``` event and confirms success.  
 This is needed for ```transferFrom()``` to work.
 
 #### 📌 Summary  
 
-This is a simple ERC-20 implementation with:  
-Basic token data (```name```, ```symbol```, ```decimals```)  
-Token balances and transfers  
-Allowance system for third-party transfers  
-A test function to mint tokens  
+This ERC-20 1% Transaction Fee Contract:  
+- Basic token data (```name```, ```symbol```, ```decimals```)  
+- Token balances and transfers
+- Allows transfers and approvals
+- Adds a 1% fee to each transfer
+- Sends the fee to a ```feeCollector``` address
+- Allowance system for third-party transfers  
+- Has a simple test function to mint tokens
+- Does not have owner control or real mint logic yet
+- Does not update ```totalSupply``` when tokens are minted
 
